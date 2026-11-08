@@ -1,0 +1,111 @@
+name: Build H SON Independent Menu v3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install ldid dpkg make
+          # Homebrew installs GNU Make as `gmake`; add its `make` alias first in PATH.
+          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+
+      - name: Install Theos
+        shell: bash
+        run: |
+          set -euo pipefail
+          THEOS="$HOME/theos"
+
+          if [ -d "$THEOS/.git" ]; then
+            git -C "$THEOS" submodule update --init --recursive
+          else
+            # This runner is normally fresh. Remove only an incomplete Theos checkout.
+            if [ -e "$THEOS" ]; then
+              rm -rf "$THEOS"
+            fi
+            git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          fi
+
+          # Do not clone directly into $THEOS/sdks: Theos may already have created it.
+          SDK_DIR="$THEOS/sdks"
+          mkdir -p "$SDK_DIR"
+          if ! find "$SDK_DIR" -mindepth 1 -maxdepth 1 -type d -name '*.sdk' -print -quit | grep -q .; then
+            TEMP_SDK="$RUNNER_TEMP/theos-sdks"
+            rm -rf "$TEMP_SDK"
+            git clone --depth 1 https://github.com/theos/sdks.git "$TEMP_SDK"
+            cp -R "$TEMP_SDK"/. "$SDK_DIR"/
+          fi
+
+          SDK_FOUND="$(find "$SDK_DIR" -mindepth 1 -maxdepth 1 -type d -name '*.sdk' -print -quit)"
+          if [ -z "$SDK_FOUND" ]; then
+            echo "ERROR: No iOS .sdk found in $SDK_DIR" >&2
+            exit 1
+          fi
+          echo "Using SDK: $SDK_FOUND"
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+
+      - name: Verify and normalize source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/fix-tab-loop-signedness.py
+          python3 scripts/verify-feature-map.py
+          grep -nE 'for \(NSUInteger i = 0; i < tabTitles\.count; i\+\+\)' Source/Tweak.m
+          if grep -n 'editor\.viewIfLoaded' Source/Features/HSONReplaceLayer.m; then
+            echo "ERROR: stale id.viewIfLoaded access remains in HSONReplaceLayer.m" >&2
+            exit 1
+          fi
+
+      - name: Build rootless ARM64 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          make --version
+          make clean
+          make package FINALPACKAGE=1
+
+      - name: Collect build outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+
+          DYLIB_PATH="$(find .theos/obj -type f -name 'HSONModernMenu.dylib' -print -quit)"
+          if [ -z "$DYLIB_PATH" ]; then
+            echo "ERROR: HSONModernMenu.dylib was not produced" >&2
+            exit 1
+          fi
+          cp "$DYLIB_PATH" release/
+
+          DEB_PATH="$(find packages -maxdepth 1 -type f -name '*.deb' -print -quit 2>/dev/null || true)"
+          if [ -n "$DEB_PATH" ]; then
+            cp "$DEB_PATH" release/
+          else
+            echo "ERROR: Theos did not produce a .deb package" >&2
+            exit 1
+          fi
+
+          file release/HSONModernMenu.dylib
+          lipo -info release/HSONModernMenu.dylib
+          ls -lh release/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: HSONModernMenu-arm64
+          path: release/*
+          if-no-files-found: error
