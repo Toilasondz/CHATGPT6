@@ -1,0 +1,9 @@
+Package: com.hson.videostartool.modernmenu
+Name: VideoStarTool H Son Independent Menu
+Version: 3.0.1
+Architecture: iphoneos-arm64
+Description: Independent H SON menu with four reconstructed Objective-C feature modules for Video Star.
+Maintainer: H Son
+Author: H Son
+Section: Tweaks
+Depends: mobilesubstrate

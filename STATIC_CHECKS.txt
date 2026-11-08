@@ -1,0 +1,12 @@
+H SON Independent Menu v3 — static checks
+
+PASS  Four H SON menu cards mapped to four Objective-C module functions.
+PASS  No legacy VSToolOverlay / featureSwitchChanged dispatcher in production Source/.
+PASS  Objective-C delimiter-balance sanity check for .m and .h files.
+PASS  20/20 exported HSONFeatureBridge functions declared and implemented.
+PASS  No .dylib bundled in the independent source package.
+
+NOT RUN  Theos / iOS SDK compile (toolchain unavailable in this workspace).
+NOT RUN  Video Star 14.3.3 device runtime tests (no test device/session available).
+
+A static pass does not establish ABI correctness, runtime stability, or 100% feature operation.

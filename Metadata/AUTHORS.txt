@@ -1,0 +1,3 @@
+H SON menu design and Objective-C reconstruction: H Son
+Reverse-engineering references: user-supplied VideoStarTool dylib, pseudocode and ARM64 disassembly
+Runtime compatibility validation: not performed
